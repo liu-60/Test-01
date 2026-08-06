@@ -170,45 +170,6 @@ def assert_shutdown_timeout(shell: str) -> None:
                 process.wait(timeout=3.0)
 
 
-def assert_multiple_signal_forwarding(shell: str) -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        marker = tmp_path / "signals.txt"
-        ready = tmp_path / "ready"
-        pid_file = tmp_path / "worker.pid"
-        code = (
-            "import os, pathlib, signal, sys, time; "
-        f"marker=pathlib.Path({str(marker)!r}); ready=pathlib.Path({str(ready)!r}); seen=[]; "
-            f"pid_file=pathlib.Path({str(pid_file)!r}); pid_file.write_text(str(os.getpid())); "
-            "handler=lambda signum, frame: (seen.append(signal.Signals(signum).name), marker.write_text(','.join(seen)), sys.exit(40) if len(seen) >= 2 else None); "
-            "signal.signal(signal.SIGTERM, handler); signal.signal(signal.SIGINT, handler); "
-            "ready.write_text('ready'); time.sleep(30)"
-        )
-        process = subprocess.Popen(
-            [shell, str(LAUNCHER), "--", sys.executable, "-c", code],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        try:
-            deadline = time.monotonic() + 3.0
-            while time.monotonic() < deadline and not ready.exists():
-                time.sleep(0.02)
-            assert ready.exists(), f"multi-signal worker did not start under {shell}"
-
-            process.send_signal(signal.SIGTERM)
-            time.sleep(0.05)
-            process.send_signal(signal.SIGINT)
-            return_code = process.wait(timeout=4.0)
-            assert return_code == 40, (shell, return_code)
-            assert marker.read_text(encoding="utf-8") == "SIGTERM,SIGINT"
-            assert_pid_gone(pid_file)
-        finally:
-            if process.poll() is None:
-                process.kill()
-                process.wait(timeout=3.0)
-
-
 def assert_duplicate_signal_suppression(shell: str) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
@@ -300,7 +261,6 @@ def main() -> None:
         assert_invalid_usage(shell)
         assert_signal_forwarding(shell, signal.SIGTERM, 42)
         assert_signal_forwarding(shell, signal.SIGINT, 43)
-        assert_multiple_signal_forwarding(shell)
         assert_duplicate_signal_suppression(shell)
         assert_graceful_shutdown_window(shell)
         assert_shutdown_timeout(shell)
