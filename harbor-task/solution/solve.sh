@@ -34,7 +34,8 @@ if [ "$#" -eq 0 ]; then
 fi
 
 child_pid=
-signal_seen=
+term_seen=0
+int_seen=0
 watchdog_pid=
 wait_interrupted=0
 
@@ -53,12 +54,26 @@ start_watchdog() {
 forward_signal() {
     sig=$1
     wait_interrupted=1
-    if [ -z "$signal_seen" ]; then
-        signal_seen=$sig
-    fi
     if [ -n "$child_pid" ]; then
-        kill -"$signal_seen" "$child_pid" 2>/dev/null || true
+        case "$sig" in
+            TERM)
+                if [ "$term_seen" -eq 0 ]; then
+                    term_seen=1
+                    kill -TERM "$child_pid" 2>/dev/null || true
+                fi
+                ;;
+            INT)
+                if [ "$int_seen" -eq 0 ]; then
+                    int_seen=1
+                    kill -INT "$child_pid" 2>/dev/null || true
+                fi
+                ;;
+        esac
         start_watchdog
+    elif [ "$sig" = "TERM" ]; then
+        term_seen=1
+    else
+        int_seen=1
     fi
 }
 
@@ -70,8 +85,13 @@ child_pid=$!
 
 # A signal can arrive between starting the child and assigning $!. If that
 # happened, deliver the pending signal now.
-if [ -n "$signal_seen" ]; then
-    kill -"$signal_seen" "$child_pid" 2>/dev/null || true
+if [ "$term_seen" -eq 1 ]; then
+    kill -TERM "$child_pid" 2>/dev/null || true
+fi
+if [ "$int_seen" -eq 1 ]; then
+    kill -INT "$child_pid" 2>/dev/null || true
+fi
+if [ "$term_seen" -eq 1 ] || [ "$int_seen" -eq 1 ]; then
     start_watchdog
 fi
 

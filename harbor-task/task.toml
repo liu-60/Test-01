@@ -1,13 +1,14 @@
 version = "1.0"
+artifacts = ["/app/backend/launch-worker.sh"]
 
 [metadata]
 author_name = "liu-60"
 author_email = ""
 author_organization = ""
 difficulty = "hard"
-difficulty_explanation = "Requires POSIX shell portability, exact argv preservation, multi-signal forwarding, and bounded graceful shutdown with a deterministic kill fallback for a container-style backend launcher."
-solution_explanation = "Replace the Bash-dependent launcher with a POSIX sh implementation that forwards each shutdown signal once, waits through interrupted waits, preserves the child's final status, and uses a one-second watchdog to kill an uncooperative worker."
-verification_explanation = "Verifier runs shell syntax checks under /bin/sh and dash, adversarial argv cases, normal exit propagation, TERM/INT forwarding, multi-signal behavior, and bounded shutdown without exposing tests to the agent."
+difficulty_explanation = "Requires POSIX shell portability, exact argv preservation, distinct multi-signal forwarding, and bounded graceful shutdown with a deterministic kill fallback for a container-style backend launcher."
+solution_explanation = "Replace the Bash-dependent launcher with a POSIX sh implementation that forwards each distinct shutdown signal once, waits through interrupted waits, preserves the child's final status, and uses a one-second watchdog to kill an uncooperative worker."
+verification_explanation = "Verifier runs shell syntax checks under /bin/sh and dash, adversarial argv cases, normal exit propagation, TERM/INT forwarding, sequential multi-signal behavior, and bounded shutdown without exposing tests to the agent."
 category = "software_engineering"
 tags = ["shell", "compatibility-fix", "backend", "posix-sh", "signals"]
 expert_time_estimate_min = 45
@@ -17,9 +18,18 @@ junior_time_estimate_hours = 2.5
 
 [verifier]
 timeout_sec = 600.0
+environment_mode = "separate"
+network_mode = "no-network"
+
+[verifier.environment]
+network_mode = "no-network"
+cpus = 2
+memory_mb = 2048
+storage_mb = 10240
 
 [agent]
 timeout_sec = 7200.0
+network_mode = "no-network"
 
 [environment]
 build_timeout_sec = 600.0
@@ -27,6 +37,7 @@ cpus = 4
 memory_mb = 8192
 storage_mb = 10240
 gpus = 0
+network_mode = "no-network"
 
 [verifier.env]
 
