@@ -1,7 +1,7 @@
 FROM alpine:3.20
 
 ARG SOURCE_REPO=https://github.com/liu-60/Test-01.git
-ARG SOURCE_COMMIT=22fc6df5550413e9cb07a20dc47606e8a95d7c71
+ARG SOURCE_COMMIT=002e3231dff17f609093837a2f0d407d1a86ffc6
 
 RUN apk add --no-cache busybox git python3 dash \
     && git clone --depth 1 "$SOURCE_REPO" /tmp/source \
