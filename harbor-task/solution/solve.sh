@@ -35,14 +35,30 @@ fi
 
 child_pid=
 signal_seen=
+watchdog_pid=
+wait_interrupted=0
+
+start_watchdog() {
+    if [ -z "$watchdog_pid" ]; then
+        (
+            sleep 1
+            if kill -0 "$child_pid" 2>/dev/null; then
+                kill -KILL "$child_pid" 2>/dev/null || true
+            fi
+        ) &
+        watchdog_pid=$!
+    fi
+}
 
 forward_signal() {
     sig=$1
+    wait_interrupted=1
     if [ -z "$signal_seen" ]; then
         signal_seen=$sig
     fi
     if [ -n "$child_pid" ]; then
         kill -"$signal_seen" "$child_pid" 2>/dev/null || true
+        start_watchdog
     fi
 }
 
@@ -56,6 +72,7 @@ child_pid=$!
 # happened, deliver the pending signal now.
 if [ -n "$signal_seen" ]; then
     kill -"$signal_seen" "$child_pid" 2>/dev/null || true
+    start_watchdog
 fi
 
 # A trapped signal can interrupt wait(1) before the child has been reaped.
@@ -64,10 +81,13 @@ fi
 while :; do
     wait "$child_pid"
     status=$?
-    if [ -n "$signal_seen" ] && [ "$status" -gt 128 ]; then
-        if kill -0 "$child_pid" 2>/dev/null; then
-            continue
-        fi
+    if [ "$wait_interrupted" -eq 1 ]; then
+        wait_interrupted=0
+        continue
+    fi
+    if [ -n "$watchdog_pid" ]; then
+        kill "$watchdog_pid" 2>/dev/null || true
+        wait "$watchdog_pid" 2>/dev/null || true
     fi
     exit "$status"
 done

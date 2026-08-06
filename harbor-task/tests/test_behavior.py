@@ -103,6 +103,40 @@ def assert_signal_forwarding(shell: str, sig: signal.Signals, expected: int) -> 
                 process.wait(timeout=3.0)
 
 
+def assert_shutdown_timeout(shell: str) -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ready = Path(tmp) / "ignore-ready"
+        code = (
+            "import pathlib, signal, time; "
+            f"ready=pathlib.Path({str(ready)!r}); "
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+            "signal.signal(signal.SIGINT, signal.SIG_IGN); "
+            "ready.write_text('ready'); time.sleep(30)"
+        )
+        process = subprocess.Popen(
+            [shell, str(LAUNCHER), "--", sys.executable, "-c", code],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            deadline = time.monotonic() + 3.0
+            while time.monotonic() < deadline and not ready.exists():
+                time.sleep(0.02)
+            assert ready.exists(), f"ignore-worker did not start under {shell}"
+
+            started = time.monotonic()
+            process.send_signal(signal.SIGTERM)
+            return_code = process.wait(timeout=4.0)
+            elapsed = time.monotonic() - started
+            assert return_code == 137, (shell, return_code)
+            assert elapsed < 3.0, (shell, elapsed)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=3.0)
+
+
 def main() -> None:
     assert LAUNCHER.is_file(), f"missing launcher: {LAUNCHER}"
     shells = available_shells()
@@ -113,6 +147,7 @@ def main() -> None:
         assert_invalid_usage(shell)
         assert_signal_forwarding(shell, signal.SIGTERM, 42)
         assert_signal_forwarding(shell, signal.SIGINT, 43)
+        assert_shutdown_timeout(shell)
 
 
 if __name__ == "__main__":
