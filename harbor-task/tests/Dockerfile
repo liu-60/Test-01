@@ -6,4 +6,5 @@ RUN sed -i 's#https://dl-cdn.alpinelinux.org/alpine#https://mirrors.aliyun.com/a
 COPY test.sh /tests/test.sh
 COPY test_behavior.py /tests/test_behavior.py
 
-RUN chmod 0755 /tests/test.sh
+RUN chmod 0755 /tests/test.sh \
+    && mkdir -p /app/backend
